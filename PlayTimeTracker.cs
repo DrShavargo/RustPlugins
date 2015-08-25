@@ -31,31 +31,44 @@ namespace Oxide.Plugins {
       public string SteamID;
       public string Name;
       public long PlayTime;
-      public long InitTimeStamp;
-      public int AfkCount;
-      public int AfkTime;
-      public double XPosition;
-      public double YPosition;
-      public double ZPosition;
-      public bool PauseAfk;
+      public long AfkTime;
 
       public PlayTimeInfo() {  }
 
       public PlayTimeInfo(BasePlayer player) {
-        InitTimeStamp = 0;
         SteamID = player.userID.ToString();
         Name = player.displayName;
         PlayTime = 0;
+        AfkTime = 0;
+      }
+    };
+
+    class PlayerStateData {
+      public Dictionary<string, PlayerStateInfo> Players = new Dictionary<string, PlayerStateInfo>();
+
+      public PlayerStateData() {  }
+    };
+
+    class PlayerStateInfo {
+      public string SteamID;
+      public long InitTimeStamp;
+      public int AfkCount;
+      public int AfkTime;
+      public double[] Position;
+
+      public PlayerStateInfo() {  }
+
+      public PlayerStateInfo(BasePlayer player) {
+        InitTimeStamp = 0;
+        SteamID = player.userID.ToString();
         AfkCount = 0;
         AfkTime = 0;
-        XPosition = 0;
-        YPosition = 0;
-        ZPosition = 0;
-        PauseAfk = false;
+        Position = new double[3];
       }
     };
 
     PlayTimeData playTimeData;
+    PlayerStateData playerStateData = new PlayerStateData();
 
     int afkCheckInterval { get { return Config.Get<int>("Afk Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
@@ -67,111 +80,72 @@ namespace Oxide.Plugins {
 
     void OnServerInitialized() {
       playTimeData = Interface.GetMod().DataFileSystem.ReadObject<PlayTimeData>("PlayTimeTracker");
-      timer.Repeat(afkCheckInterval, 0, () => afkCheck());
+      if (!afkCounts) {
+        timer.Repeat(afkCheckInterval, 0, () => afkCheck());
+      }
     }
 
     void OnPlayerSleepEnded(BasePlayer player) {
       long currentTimestamp = GrabCurrentTimestamp();
       var info = new PlayTimeInfo(player);
+      var state = new PlayerStateInfo(player);
 
+      playerStateData.Players.Add(state.SteamID, state);
       if (!playTimeData.Players.ContainsKey(info.SteamID)) {
         playTimeData.Players.Add(info.SteamID, info);
-        
       }
-      playTimeData.Players[info.SteamID].InitTimeStamp = currentTimestamp;
       playTimeData.Players[info.SteamID].Name = player.displayName;
-      playTimeData.Players[info.SteamID].XPosition = Math.Round(player.transform.position.x, 2);
-      playTimeData.Players[info.SteamID].YPosition = Math.Round(player.transform.position.y, 2);
-      playTimeData.Players[info.SteamID].ZPosition = Math.Round(player.transform.position.z, 2);
-      playTimeData.Players[info.SteamID].AfkTime = 0;
-      playTimeData.Players[info.SteamID].AfkCount = 0;
-      playTimeData.Players[info.SteamID].PauseAfk = false;
 
+      playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
+      playerStateData.Players[state.SteamID].AfkTime = 0;
+      playerStateData.Players[state.SteamID].AfkCount = 0;
+
+      playerStateData.Players[state.SteamID].Position[0] = Math.Round(player.transform.position.x, 2);
+      playerStateData.Players[state.SteamID].Position[1] = Math.Round(player.transform.position.y, 2);
+      playerStateData.Players[state.SteamID].Position[2] = Math.Round(player.transform.position.z, 2);
+      
       Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
     }
 
     void OnPlayerDisconnected(BasePlayer player) {
       long currentTimestamp = GrabCurrentTimestamp();
       var info = new PlayTimeInfo(player);
+      var state = new PlayerStateInfo(player);
 
       if (playTimeData.Players.ContainsKey(info.SteamID)) {
-        long initTimeStamp = playTimeData.Players[info.SteamID].InitTimeStamp;
-        int afkTime = playTimeData.Players[info.SteamID].AfkTime;
-        long totalPlayed = (currentTimestamp - initTimeStamp) - afkTime;
+        long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
+        int afkTime = playerStateData.Players[state.SteamID].AfkTime;
+        long totalPlayed = currentTimestamp - initTimeStamp;
 
         playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
+        playTimeData.Players[info.SteamID].AfkTime += afkTime;
         Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
       }
     }
 
-    /* 
-    * Some actions could be performed while in one position for a long time.
-    * These 5 callbacks keep the player from being labelled as AFK.
-    */
-    void CanUpdateSign(Signage sign, BasePlayer player) {
-      toggleAfkPause(player, true);
-    }
-
-    void OnSignLocked(Signage sign, BasePlayer player) {
-      toggleAfkPause(player, false);
-    }
-
-    void OnSignUpdated(Signage sign, BasePlayer player) {
-      toggleAfkPause(player, false);
-    }
-
-    void OnWeaponFired(BasePlayer player) {
-      resetAfkCount(player);
-    }
-
-    void OnPlayerLoot(BasePlayer player) {
-      resetAfkCount(player);
-    }
-
-    private void toggleAfkPause(BasePlayer player, bool pause) {
-      var info = new PlayTimeInfo(player);
-
-      if (playTimeData.Players.ContainsKey(info.SteamID))  {
-        playTimeData.Players[info.SteamID].PauseAfk = pause;
-      }
-    }
-
-    private void resetAfkCount(BasePlayer player) {
-      var info = new PlayTimeInfo(player);
-
-      if (playTimeData.Players.ContainsKey(info.SteamID))  {
-        playTimeData.Players[info.SteamID].AfkCount = 0;
-      }
-    }
-
+    // Master AFK checking function, iterates through all connected players.
     private void afkCheck() {
-      if (!afkCounts) {
-        foreach (BasePlayer player in BasePlayer.activePlayerList) {
-          var info = new PlayTimeInfo(player);
+      foreach (BasePlayer player in BasePlayer.activePlayerList) {
+        var state = new PlayerStateInfo(player);
 
-          if (playTimeData.Players.ContainsKey(info.SteamID)) {
-            double currentX = Math.Round(player.transform.position.x, 2);
-            double currentY = Math.Round(player.transform.position.y, 2);
-            double currentZ = Math.Round(player.transform.position.z, 2);
+        if (playerStateData.Players.ContainsKey(state.SteamID)) {
+          double currentX = Math.Round(player.transform.position.x, 2);
+          double currentY = Math.Round(player.transform.position.y, 2);
+          double currentZ = Math.Round(player.transform.position.z, 2);
 
-            double storedX = playTimeData.Players[info.SteamID].XPosition;
-            double storedY = playTimeData.Players[info.SteamID].YPosition;
-            double storedZ = playTimeData.Players[info.SteamID].ZPosition;
+          double[] storedPos = playerStateData.Players[state.SteamID].Position;
 
-            if (currentX == storedX && currentY == storedY && currentZ == storedZ) {
-              playTimeData.Players[info.SteamID].AfkCount += 1;
-            } else {
-              playTimeData.Players[info.SteamID].AfkCount = 0;
-              playTimeData.Players[info.SteamID].XPosition = currentX;
-              playTimeData.Players[info.SteamID].YPosition = currentY;
-              playTimeData.Players[info.SteamID].ZPosition = currentZ;
-            }
+          if (currentX == storedPos[0] && currentY == storedPos[1] && currentZ == storedPos[2]) {
+            playerStateData.Players[state.SteamID].AfkCount += 1;
+          } else {
+            playerStateData.Players[state.SteamID].AfkCount = 0;
+            playerStateData.Players[state.SteamID].Position[0] = currentX;
+            playerStateData.Players[state.SteamID].Position[1] = currentY;
+            playerStateData.Players[state.SteamID].Position[2] = currentZ;
+          }
 
-            if (playTimeData.Players[info.SteamID].AfkCount >= cyclesUntilAfk && !playTimeData.Players[info.SteamID].PauseAfk) {
-              playTimeData.Players[info.SteamID].AfkTime += 30;
-            }
-
-            Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
+          if (playerStateData.Players[state.SteamID].AfkCount > cyclesUntilAfk) {
+            playerStateData.Players[state.SteamID].AfkTime += 30;
           }
         }
       }
