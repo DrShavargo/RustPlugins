@@ -9,7 +9,7 @@ using System.Linq;
 
 namespace Oxide.Plugins {
   [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.0)]
-  [Description("Logs every players' play time (minus time spent AFK).")]
+  [Description("Logs every players' play and afk time, separately.")]
   public class PlayTimeTracker : RustPlugin {
 
     protected override void LoadDefaultConfig() {
@@ -17,7 +17,7 @@ namespace Oxide.Plugins {
       Config.Clear();
       Config["Afk Check Interval"] = 30;
       Config["Cycles Until Afk"] = 4;
-      Config["Count Afk As TimePlayed?"] = false;
+      Config["Track AFK Time?"] = true;
       SaveConfig();
     }
 
@@ -72,7 +72,7 @@ namespace Oxide.Plugins {
 
     int afkCheckInterval { get { return Config.Get<int>("Afk Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
-    bool afkCounts { get { return Config.Get<bool>("Count Afk As TimePlayed?"); } }
+    bool afkCounts { get { return Config.Get<bool>("Track AFK Time?"); } }
 
     void Init() {
       Puts("PlayTimeTracker Initializing...");
@@ -80,7 +80,7 @@ namespace Oxide.Plugins {
 
     void OnServerInitialized() {
       playTimeData = Interface.GetMod().DataFileSystem.ReadObject<PlayTimeData>("PlayTimeTracker");
-      if (!afkCounts) {
+      if (afkCounts) {
         timer.Repeat(afkCheckInterval, 0, () => afkCheck());
       }
     }
@@ -90,7 +90,9 @@ namespace Oxide.Plugins {
       var info = new PlayTimeInfo(player);
       var state = new PlayerStateInfo(player);
 
-      playerStateData.Players.Add(state.SteamID, state);
+      if (!playerStateData.Players.ContainsKey(state.SteamID)) {
+        playerStateData.Players.Add(state.SteamID, state);
+      }
       if (!playTimeData.Players.ContainsKey(info.SteamID)) {
         playTimeData.Players.Add(info.SteamID, info);
       }
