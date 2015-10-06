@@ -1,5 +1,5 @@
 /*
-* Version 1.0
+* Version 1.0.1
 */
 
 using System;
@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace Oxide.Plugins {
-  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.0)]
+  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.0.1)]
   [Description("Logs every players' play and afk time, separately.")]
   public class PlayTimeTracker : RustPlugin {
 
