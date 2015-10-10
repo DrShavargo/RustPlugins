@@ -1,5 +1,5 @@
 /*
-* Version 1.0.1
+* Version 1.1.0
 */
 
 using System;
@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace Oxide.Plugins {
-  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.0.1)]
+  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.0)]
   [Description("Logs every players' play and afk time, separately.")]
   public class PlayTimeTracker : RustPlugin {
 
@@ -32,6 +32,8 @@ namespace Oxide.Plugins {
       public string Name;
       public long PlayTime;
       public long AfkTime;
+      public string HumanPlayTime;
+      public string HumanAfkTime;
 
       public PlayTimeInfo() {  }
 
@@ -40,6 +42,8 @@ namespace Oxide.Plugins {
         Name = player.displayName;
         PlayTime = 0;
         AfkTime = 0;
+        HumanPlayTime = "00:00:00";
+        HumanAfkTime = "00:00:00";
       }
     };
 
@@ -119,8 +123,20 @@ namespace Oxide.Plugins {
         int afkTime = playerStateData.Players[state.SteamID].AfkTime;
         long totalPlayed = currentTimestamp - initTimeStamp;
 
-        playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
         playTimeData.Players[info.SteamID].AfkTime += afkTime;
+        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime);
+        playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:D2}h:{1:D2}m:{2:D2}s", 
+          Math.Floor(humanAfkTime.TotalHours), 
+          humanAfkTime.Minutes, 
+          humanAfkTime.Seconds);
+
+        playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
+        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
+        playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:D2}h:{1:D2}m:{2:D2}s", 
+          Math.Floor(humanPlayTime.TotalHours), 
+          humanPlayTime.Minutes, 
+          humanPlayTime.Seconds);
+
         Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
       }
     }

@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace Oxide.Plugins {
-  [Info("Rewards for Time PLayed on Server", "ArcaneCraeda", 1.0.0)]
+  [Info("Rewards for Time PLayed on Server", "ArcaneCraeda", 1.0)]
   [Description("A reward system for time played on the server.")]
   public class RewardForTimePlayed : RustPlugin {
 
@@ -73,6 +73,7 @@ namespace Oxide.Plugins {
     PlayerStateData playerStateData = new PlayerStateData();
     int[] levelsTimePlayed;
     int sumOfTimes;
+    int timeToLvlUpSec;
 
     int allCheckInterval { get { return Config.Get<int>("Reward/PlayTime/AFK Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
@@ -82,8 +83,8 @@ namespace Oxide.Plugins {
     int maxPrestige { get { return Config.Get<int>("Max Prestige"); } }
     int timeToLvlUp { get { return Config.Get<int>("Time Needed For First Level Up"); } }
     string lvlScale { get { return Config.Get<string>("Leveling Scale"); } }
-    float exponentLvlFactor { get { return Config.Get<string>("Exponential Leveling Factor"); } }
-    float prestigeMult { get { return Config.Get<string>("Prestige Multiplier"); } }
+    float exponentLvlFactor { get { return Config.Get<float>("Exponential Leveling Factor"); } }
+    float prestigeMult { get { return Config.Get<float>("Prestige Multiplier"); } }
 
     void Init() {
       Puts("RewardForTimePlayed Initializing...");
@@ -92,7 +93,7 @@ namespace Oxide.Plugins {
     void OnServerInitialized() {
       playerRewardData = Interface.GetMod().DataFileSystem.ReadObject<PlayerRewardData>("RewardForTimePlayed");
       timer.Repeat(allCheckInterval, 0, () => timeCheck());
-      timeToLvlUp = timeToLvlUp * 60;
+      timeToLvlUpSec = timeToLvlUp * 60;
       levelsTimePlayed = new int[maxLevel];
       switch (lvlScale) {
         case "stable":
@@ -150,17 +151,17 @@ namespace Oxide.Plugins {
           if (!afkCheck(state, player)) {
             int playtime = playerStateData.Players[state.SteamID].PlayTime;
             
-            currentPrestige = playtime / sumOfTimes;
-            currentLevelTime = playtime % sumOfTimes;
-            currentLevel = 0;
+            int currentPrestige = playtime / sumOfTimes;
+            int currentLevelTime = playtime % sumOfTimes;
+            int currentLevel = 0;
             foreach (int lvlTime in levelsTimePlayed){
               if (currentLevelTime > lvlTime){ currentLevel++; }
             }
             
             playtime += 30;
-            newPrestige = playtime / sumOfTimes;
-            newLevelTime = playtime % sumOfTimes;
-            newLevel = 0;
+            int newPrestige = playtime / sumOfTimes;
+            int newLevelTime = playtime % sumOfTimes;
+            int newLevel = 0;
             foreach (int lvlTime in levelsTimePlayed){
               if (newLevelTime > lvlTime){ newLevel++; }
             }
@@ -202,21 +203,21 @@ namespace Oxide.Plugins {
 
     private void calcLinearTimeArray(){
       levelsTimePlayed[0] = 0;
-      for (int i = 1; i < levelsTimePlayed.lenght(); i++) {
-        levelsTimePlayed[i] = levelsTimePlayed[i-1] + timeToLvlUp * i;
+      for (int i = 1; i < levelsTimePlayed.Length; i++) {
+        levelsTimePlayed[i] = levelsTimePlayed[i-1] + timeToLvlUpSec * i;
       }
     }
 
     private void calcStableTimeArray(){
-      for (int i = 0; i < levelsTimePlayed.lenght(); i++) {
-        levelsTimePlayed[i] = timeToLvlUp * i;
+      for (int i = 0; i < levelsTimePlayed.Length; i++) {
+        levelsTimePlayed[i] = timeToLvlUpSec * i;
       }
     }
 
     private void calcExpoTimeArray(){
       levelsTimePlayed[0] = 0;
-      for (int i = 1; i < levelsTimePlayed.lenght(); i++) {
-        levelsTimePlayed[i] = levelsTimePlayed[i-1] * exponentLvlFactor + timeToLvlUp;
+      for (int i = 1; i < levelsTimePlayed.Length; i++) {
+        levelsTimePlayed[i] = (int)((float)levelsTimePlayed[i-1] * exponentLvlFactor) + timeToLvlUpSec;
       }
     }
 
