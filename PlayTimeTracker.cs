@@ -125,17 +125,11 @@ namespace Oxide.Plugins {
 
         playTimeData.Players[info.SteamID].AfkTime += afkTime;
         TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime);
-        playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:D2}h:{1:D2}m:{2:D2}s", 
-          Math.Floor(humanAfkTime.TotalHours), 
-          humanAfkTime.Minutes, 
-          humanAfkTime.Seconds);
+        playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:c}", humanAfkTime);
 
         playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
         TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
-        playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:D2}h:{1:D2}m:{2:D2}s", 
-          Math.Floor(humanPlayTime.TotalHours), 
-          humanPlayTime.Minutes, 
-          humanPlayTime.Seconds);
+        playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:c}", humanPlayTime);
 
         Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
       }
