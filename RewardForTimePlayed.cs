@@ -90,7 +90,7 @@ namespace Oxide.Plugins {
       Puts("RewardForTimePlayed Initializing...");
     }
 
-    void OnServerInitialized() {
+    void OnPluginLoaded() {
       playerRewardData = Interface.GetMod().DataFileSystem.ReadObject<PlayerRewardData>("RewardForTimePlayed");
       timer.Repeat(allCheckInterval, 0, () => timeCheck());
       timeToLvlUpSec = timeToLvlUp * 60;
@@ -146,7 +146,6 @@ namespace Oxide.Plugins {
     private void timeCheck() {
       foreach (BasePlayer player in BasePlayer.activePlayerList) {
         var state = new PlayerStateInfo(player);
-
         if (playerStateData.Players.ContainsKey(state.SteamID)) {
           if (!afkCheck(state, player)) {
             int playtime = playerStateData.Players[state.SteamID].PlayTime;
@@ -158,7 +157,7 @@ namespace Oxide.Plugins {
               if (currentLevelTime > lvlTime){ currentLevel++; }
             }
             
-            playtime += 30;
+            playtime += allCheckInterval;
             int newPrestige = playtime / sumOfTimes;
             int newLevelTime = playtime % sumOfTimes;
             int newLevel = 0;

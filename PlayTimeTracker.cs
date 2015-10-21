@@ -1,5 +1,5 @@
 /*
-* Version 1.1.0
+* Version 1.2.0
 */
 
 using System;
@@ -18,6 +18,7 @@ namespace Oxide.Plugins {
       Config["Afk Check Interval"] = 30;
       Config["Cycles Until Afk"] = 4;
       Config["Track AFK Time?"] = true;
+      Config["Allow Players To Check Time?"] = true;
       SaveConfig();
     }
 
@@ -77,6 +78,7 @@ namespace Oxide.Plugins {
     int afkCheckInterval { get { return Config.Get<int>("Afk Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
     bool afkCounts { get { return Config.Get<bool>("Track AFK Time?"); } }
+    bool allowCheck {  get { return Config.Get<bool>("Allow Players To Check Time?"); } }
 
     void Init() {
       Puts("PlayTimeTracker Initializing...");
@@ -135,6 +137,35 @@ namespace Oxide.Plugins {
       }
     }
 
+
+    [ChatCommand("playtime")]
+    void cmdPlayTime(BasePlayer player, string cmd, string[] args) {
+      if (!allowCheck){return;}
+      var info = new PlayTimeInfo(player);
+      var state = new PlayerStateInfo(player);
+
+      if (playTimeData.Players.ContainsKey(info.SteamID)) {
+        long currentTimestamp = GrabCurrentTimestamp();
+        long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
+        long totalPlayed = currentTimestamp - initTimeStamp;
+        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime + totalPlayed);
+        player.ChatMessage("Total PlayTime: " + string.Format("{0:c}", humanPlayTime));
+      }
+    }
+
+    [ChatCommand("afktime")]
+    void cmdAfkTime(BasePlayer player, string cmd, string[] args) {
+      if (!allowCheck){return;}
+      var info = new PlayTimeInfo(player);
+      var state = new PlayerStateInfo(player);
+
+      if (playTimeData.Players.ContainsKey(info.SteamID)) {
+        int afkTime = playerStateData.Players[state.SteamID].AfkTime;
+        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime + afkTime);
+        player.ChatMessage("Total time spent AFK: " + string.Format("{0:c}", humanAfkTime));
+      }
+    }
+
     // Master AFK checking function, iterates through all connected players.
     private void afkCheck() {
       foreach (BasePlayer player in BasePlayer.activePlayerList) {
@@ -157,7 +188,7 @@ namespace Oxide.Plugins {
           }
 
           if (playerStateData.Players[state.SteamID].AfkCount > cyclesUntilAfk) {
-            playerStateData.Players[state.SteamID].AfkTime += 30;
+            playerStateData.Players[state.SteamID].AfkTime += afkCheckInterval;
           }
         }
       }
