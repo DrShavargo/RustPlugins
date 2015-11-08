@@ -23,7 +23,8 @@ namespace Oxide.Plugins {
       Config["Time Needed For First Level Up"] = 20;
       Config["Leveling Scale"] = "linear";
       Config["Exponential Leveling Factor"] = 2;
-      Config["Prestige Multiplier"] = 1.5;
+      Config["Prestige Multiplier"] = 2;
+      Config["Reward List"] = new [] { "FOLLOW THE EXAMPLE FORMAT ON THE PLUGIN PAGE" };
       SaveConfig();
     }
 
@@ -85,6 +86,7 @@ namespace Oxide.Plugins {
     string lvlScale { get { return Config.Get<string>("Leveling Scale"); } }
     float exponentLvlFactor { get { return Config.Get<float>("Exponential Leveling Factor"); } }
     float prestigeMult { get { return Config.Get<float>("Prestige Multiplier"); } }
+    float rewardList { get { return Config.Get<float>("Reward List"); } }
 
     void Init() {
       Puts("RewardForTimePlayed Initializing...");
@@ -222,6 +224,7 @@ namespace Oxide.Plugins {
 
     private void grantReward(BasePlayer player, int prestige, int level){
       Puts("Prestige: " + prestige + ", Level: " + level);
+      Puts(rewardList[0]);
     }
   };
 };

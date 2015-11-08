@@ -18,7 +18,6 @@ namespace Oxide.Plugins {
       Config["Afk Check Interval"] = 30;
       Config["Cycles Until Afk"] = 4;
       Config["Track AFK Time?"] = true;
-      Config["Allow Players To Check Time?"] = true;
       SaveConfig();
     }
 
@@ -35,6 +34,7 @@ namespace Oxide.Plugins {
       public long AfkTime;
       public string HumanPlayTime;
       public string HumanAfkTime;
+      public string LastSeen;
 
       public PlayTimeInfo() {  }
 
@@ -45,6 +45,7 @@ namespace Oxide.Plugins {
         AfkTime = 0;
         HumanPlayTime = "00:00:00";
         HumanAfkTime = "00:00:00";
+        LastSeen = "Never";
       }
     };
 
@@ -75,23 +76,32 @@ namespace Oxide.Plugins {
     PlayTimeData playTimeData;
     PlayerStateData playerStateData = new PlayerStateData();
 
+    public string prefix = "PlayTimeTracker: ";
+
     int afkCheckInterval { get { return Config.Get<int>("Afk Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
     bool afkCounts { get { return Config.Get<bool>("Track AFK Time?"); } }
-    bool allowCheck {  get { return Config.Get<bool>("Allow Players To Check Time?"); } }
 
     void Init() {
       Puts("PlayTimeTracker Initializing...");
+      LoadPermissions();
     }
 
-    void OnServerInitialized() {
+    void LoadPermissions() {
+      string [] permissions = {"CanCheckPlayTime", "CanCheckAfkTime", "CanCheckLastSeen", "CanCheckSelfPlayTime", "CanCheckSelfAfkTime", "CanCheckSelfLastSeen"};
+      for (int i = 0; i < permissions.Length; i++){
+        if (!permission.PermissionExists(permissions[i])) { permission.RegisterPermission(permissions[i], this); }
+      }
+    }
+
+    void OnPluginLoaded() {
       playTimeData = Interface.GetMod().DataFileSystem.ReadObject<PlayTimeData>("PlayTimeTracker");
       if (afkCounts) {
         timer.Repeat(afkCheckInterval, 0, () => afkCheck());
       }
     }
 
-    void OnPlayerSleepEnded(BasePlayer player) {
+    void OnPlayerInit(BasePlayer player) {
       long currentTimestamp = GrabCurrentTimestamp();
       var info = new PlayTimeInfo(player);
       var state = new PlayerStateInfo(player);
@@ -103,6 +113,7 @@ namespace Oxide.Plugins {
         playTimeData.Players.Add(info.SteamID, info);
       }
       playTimeData.Players[info.SteamID].Name = player.displayName;
+      playTimeData.Players[info.SteamID].LastSeen = "Now";
 
       playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
       playerStateData.Players[state.SteamID].AfkTime = 0;
@@ -133,6 +144,8 @@ namespace Oxide.Plugins {
         TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
         playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:c}", humanPlayTime);
 
+        playTimeData.Players[info.SteamID].LastSeen = (DateTime.Now).ToString("G");
+
         Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
       }
     }
@@ -140,29 +153,70 @@ namespace Oxide.Plugins {
 
     [ChatCommand("playtime")]
     void cmdPlayTime(BasePlayer player, string cmd, string[] args) {
-      if (!allowCheck){return;}
-      var info = new PlayTimeInfo(player);
-      var state = new PlayerStateInfo(player);
+      string target = player.userID.ToString();
+      if (args.Length!=0) {
+        if (!hasPermission(player, "CanCheckPlayTime")) { return; }
+        var queriedPlayer = args[0];
+        string playerSteamID = FindPlayer(queriedPlayer);
+        if (String.IsNullOrEmpty(playerSteamID)) {
+          SendReply(player, prefix + "The player '" + queriedPlayer + "' does not exist in the system.");
+          return; 
+        }
+        target = playerSteamID.ToString();
+      } else {
+        if (!hasPermission(player, "CanCheckSelfPlayTime")) { return; }
+      }
 
-      if (playTimeData.Players.ContainsKey(info.SteamID)) {
+      if (playerStateData.Players.ContainsKey(target)) {
         long currentTimestamp = GrabCurrentTimestamp();
-        long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
+        long initTimeStamp = playerStateData.Players[target].InitTimeStamp;
         long totalPlayed = currentTimestamp - initTimeStamp;
-        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime + totalPlayed);
+        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[target].PlayTime + totalPlayed);
         player.ChatMessage("Total PlayTime: " + string.Format("{0:c}", humanPlayTime));
       }
     }
 
     [ChatCommand("afktime")]
     void cmdAfkTime(BasePlayer player, string cmd, string[] args) {
-      if (!allowCheck){return;}
-      var info = new PlayTimeInfo(player);
-      var state = new PlayerStateInfo(player);
+      string target = player.userID.ToString();
+      if (args.Length!=0) {
+        if (!hasPermission(player, "CanCheckAfkTime")) { return; }
+        var queriedPlayer = args[0];
+        string playerSteamID = FindPlayer(queriedPlayer);
+        if (String.IsNullOrEmpty(playerSteamID)) {
+          SendReply(player, prefix + "The player '" + queriedPlayer + "' does not exist in the system.");
+          return;
+        }
+        target = playerSteamID.ToString();
+      } else {
+        if (!hasPermission(player, "CanCheckSelfAfkTime")) { return; }
+      }
 
-      if (playTimeData.Players.ContainsKey(info.SteamID)) {
-        int afkTime = playerStateData.Players[state.SteamID].AfkTime;
-        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime + afkTime);
+      if (playerStateData.Players.ContainsKey(target)) {
+        int afkTime = playerStateData.Players[target].AfkTime;
+        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[target].AfkTime + afkTime);
         player.ChatMessage("Total time spent AFK: " + string.Format("{0:c}", humanAfkTime));
+      }
+    }
+
+    [ChatCommand("lastseen")]
+    void cmdLastSeen(BasePlayer player, string command, string[] args) {
+      string target = player.userID.ToString();
+      if (args.Length!=0) {
+        if (!hasPermission(player, "CanCheckLastSeen")) { return; }
+        var queriedPlayer = args[0];
+        string playerSteamID = FindPlayer(queriedPlayer);
+        if (String.IsNullOrEmpty(playerSteamID)) {
+          SendReply(player, prefix + "The player '" + queriedPlayer + "' does not exist in the system.");
+          return;
+        }
+        target = playerSteamID.ToString();
+      } else {
+        if (!hasPermission(player, "CanCheckSelfLastSeen")) { return; }
+      }
+
+      if (playTimeData.Players.ContainsKey(target)) {
+        player.ChatMessage(player.displayName + " was last seen " +  playTimeData.Players[target].LastSeen);
       }
     }
 
@@ -201,6 +255,19 @@ namespace Oxide.Plugins {
       timestamp = ticks;
 
       return timestamp;
+    }
+
+    private bool hasPermission(BasePlayer player, string _permission) {
+      if (permission.UserHasPermission(player.userID.ToString(), _permission)) { return true; }
+      player.ChatMessage("You do not have access to this command.");
+      return false;
+    }
+
+    private string FindPlayer(string name) {
+      foreach (var player in playTimeData.Players) {
+        if (player.Value.Name.Contains(name)){ return player.Value.SteamID; }
+      }
+      return "";
     }
   };
 };
