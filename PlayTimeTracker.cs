@@ -1,5 +1,5 @@
 /*
-* Version 1.2.0
+* Version 1.3.1
 */
 
 using System;
@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace Oxide.Plugins {
-  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.0)]
+  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.3)]
   [Description("Logs every players' play and afk time, separately.")]
   public class PlayTimeTracker : RustPlugin {
 
@@ -96,58 +96,32 @@ namespace Oxide.Plugins {
 
     void OnPluginLoaded() {
       playTimeData = Interface.GetMod().DataFileSystem.ReadObject<PlayTimeData>("PlayTimeTracker");
-      if (afkCounts) {
-        timer.Repeat(afkCheckInterval, 0, () => afkCheck());
+      if (afkCounts) { timer.Repeat(afkCheckInterval, 0, () => afkCheck()); }
+      foreach (BasePlayer player in BasePlayer.activePlayerList) { initPlayerState(player); }
+    }
+
+    void OnPluginUnloaded() {
+      foreach (BasePlayer player in BasePlayer.activePlayerList) {
+        savePlayerState(player);
       }
     }
 
     void OnPlayerInit(BasePlayer player) {
-      long currentTimestamp = GrabCurrentTimestamp();
       var info = new PlayTimeInfo(player);
-      var state = new PlayerStateInfo(player);
-
-      if (!playerStateData.Players.ContainsKey(state.SteamID)) {
-        playerStateData.Players.Add(state.SteamID, state);
-      }
+     
       if (!playTimeData.Players.ContainsKey(info.SteamID)) {
         playTimeData.Players.Add(info.SteamID, info);
       }
       playTimeData.Players[info.SteamID].Name = player.displayName;
       playTimeData.Players[info.SteamID].LastSeen = "Now";
 
-      playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
-      playerStateData.Players[state.SteamID].AfkTime = 0;
-      playerStateData.Players[state.SteamID].AfkCount = 0;
-
-      playerStateData.Players[state.SteamID].Position[0] = Math.Round(player.transform.position.x, 2);
-      playerStateData.Players[state.SteamID].Position[1] = Math.Round(player.transform.position.y, 2);
-      playerStateData.Players[state.SteamID].Position[2] = Math.Round(player.transform.position.z, 2);
-      
       Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
+
+      initPlayerState(player);
     }
 
     void OnPlayerDisconnected(BasePlayer player) {
-      long currentTimestamp = GrabCurrentTimestamp();
-      var info = new PlayTimeInfo(player);
-      var state = new PlayerStateInfo(player);
-
-      if (playTimeData.Players.ContainsKey(info.SteamID)) {
-        long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
-        int afkTime = playerStateData.Players[state.SteamID].AfkTime;
-        long totalPlayed = currentTimestamp - initTimeStamp;
-
-        playTimeData.Players[info.SteamID].AfkTime += afkTime;
-        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime);
-        playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:c}", humanAfkTime);
-
-        playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
-        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
-        playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:c}", humanPlayTime);
-
-        playTimeData.Players[info.SteamID].LastSeen = (DateTime.Now).ToString("G");
-
-        Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
-      }
+      savePlayerState(player);
     }
 
 
@@ -172,7 +146,7 @@ namespace Oxide.Plugins {
         long initTimeStamp = playerStateData.Players[target].InitTimeStamp;
         long totalPlayed = currentTimestamp - initTimeStamp;
         TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[target].PlayTime + totalPlayed);
-        player.ChatMessage("Total PlayTime: " + string.Format("{0:c}", humanPlayTime));
+        player.ChatMessage(playTimeData.Players[target].Name + "'s total playtime: " + string.Format("{0:c}", humanPlayTime));
       }
     }
 
@@ -195,7 +169,7 @@ namespace Oxide.Plugins {
       if (playerStateData.Players.ContainsKey(target)) {
         int afkTime = playerStateData.Players[target].AfkTime;
         TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[target].AfkTime + afkTime);
-        player.ChatMessage("Total time spent AFK: " + string.Format("{0:c}", humanAfkTime));
+        player.ChatMessage(playTimeData.Players[target].Name + "'s time spent AFK: " + string.Format("{0:c}", humanAfkTime));
       }
     }
 
@@ -216,7 +190,7 @@ namespace Oxide.Plugins {
       }
 
       if (playTimeData.Players.ContainsKey(target)) {
-        player.ChatMessage(player.displayName + " was last seen " +  playTimeData.Players[target].LastSeen);
+        player.ChatMessage(playTimeData.Players[target].Name + " was last seen " + playTimeData.Players[target].LastSeen);
       }
     }
 
@@ -248,6 +222,49 @@ namespace Oxide.Plugins {
       }
     }
 
+    private void initPlayerState(BasePlayer player) {
+      long currentTimestamp = GrabCurrentTimestamp();
+      var state = new PlayerStateInfo(player);
+
+      if (!playerStateData.Players.ContainsKey(state.SteamID))
+      {
+        playerStateData.Players.Add(state.SteamID, state);
+
+        playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
+        playerStateData.Players[state.SteamID].AfkTime = 0;
+        playerStateData.Players[state.SteamID].AfkCount = 0;
+
+        playerStateData.Players[state.SteamID].Position[0] = Math.Round(player.transform.position.x, 2);
+        playerStateData.Players[state.SteamID].Position[1] = Math.Round(player.transform.position.y, 2);
+        playerStateData.Players[state.SteamID].Position[2] = Math.Round(player.transform.position.z, 2);
+      }
+    }
+
+    private void savePlayerState(BasePlayer player) {
+      long currentTimestamp = GrabCurrentTimestamp();
+      var info = new PlayTimeInfo(player);
+      var state = new PlayerStateInfo(player);
+
+      if (playTimeData.Players.ContainsKey(info.SteamID))
+      {
+        long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
+        int afkTime = playerStateData.Players[state.SteamID].AfkTime;
+        long totalPlayed = currentTimestamp - initTimeStamp;
+
+        playTimeData.Players[info.SteamID].AfkTime += afkTime;
+        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime);
+        playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:c}", humanAfkTime);
+
+        playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
+        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
+        playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:c}", humanPlayTime);
+
+        playTimeData.Players[info.SteamID].LastSeen = (DateTime.Now).ToString("G");
+
+        Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
+      }
+    }
+
     private static long GrabCurrentTimestamp() {
       long timestamp = 0;
       long ticks = DateTime.UtcNow.Ticks - DateTime.Parse("01/01/1970 00:00:00").Ticks;
@@ -265,7 +282,7 @@ namespace Oxide.Plugins {
 
     private string FindPlayer(string name) {
       foreach (var player in playTimeData.Players) {
-        if (player.Value.Name.Contains(name)){ return player.Value.SteamID; }
+        if (player.Value.Name.ToLower().Contains(name.ToLower())) { return player.Value.SteamID; }
       }
       return "";
     }
