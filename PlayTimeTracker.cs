@@ -1,5 +1,5 @@
 /*
-* Version 1.3.1
+* Version 1.3.2
 */
 
 using System;
@@ -229,15 +229,14 @@ namespace Oxide.Plugins {
       if (!playerStateData.Players.ContainsKey(state.SteamID))
       {
         playerStateData.Players.Add(state.SteamID, state);
-
-        playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
-        playerStateData.Players[state.SteamID].AfkTime = 0;
-        playerStateData.Players[state.SteamID].AfkCount = 0;
-
-        playerStateData.Players[state.SteamID].Position[0] = Math.Round(player.transform.position.x, 2);
-        playerStateData.Players[state.SteamID].Position[1] = Math.Round(player.transform.position.y, 2);
-        playerStateData.Players[state.SteamID].Position[2] = Math.Round(player.transform.position.z, 2);
       }
+      playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
+      playerStateData.Players[state.SteamID].AfkTime = 0;
+      playerStateData.Players[state.SteamID].AfkCount = 0;
+
+      playerStateData.Players[state.SteamID].Position[0] = Math.Round(player.transform.position.x, 2);
+      playerStateData.Players[state.SteamID].Position[1] = Math.Round(player.transform.position.y, 2);
+      playerStateData.Players[state.SteamID].Position[2] = Math.Round(player.transform.position.z, 2);
     }
 
     private void savePlayerState(BasePlayer player) {
