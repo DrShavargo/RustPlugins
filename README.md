@@ -14,6 +14,7 @@ Re-uploading the plugin (for instance, to update it) may cause errors on player 
 **Afk Check Interval (seconds)**: How often should the script check if a player has not changed position.  
 **Cycles Until Afk (number)**: How many cycles of the above should happen until the player is considered AFK.  
 **Track AFK Time? (true/false)**: Enables/Disables AFK time tracking. Disabling this may reduce server load by a small amount.  
+**Manual Log Interval (minutes)**: How often should player data be saved (set to -1 to disable)
 
 ### Chat Commands
 **/playtime**: Prints the player's total playtime to chat, up to the second, in human readable form.  

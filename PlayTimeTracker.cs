@@ -18,6 +18,7 @@ namespace Oxide.Plugins {
       Config["Afk Check Interval"] = 30;
       Config["Cycles Until Afk"] = 4;
       Config["Track AFK Time?"] = true;
+      Config["Manual Logging Interval"] = 5;
       SaveConfig();
     }
 
@@ -81,6 +82,7 @@ namespace Oxide.Plugins {
     int afkCheckInterval { get { return Config.Get<int>("Afk Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
     bool afkCounts { get { return Config.Get<bool>("Track AFK Time?"); } }
+    int manualLogInterval { get { return Config.Get<int>("Manual Logging Interval"); } }
 
     void Init() {
       Puts("PlayTimeTracker Initializing...");
@@ -97,6 +99,7 @@ namespace Oxide.Plugins {
     void OnPluginLoaded() {
       playTimeData = Interface.GetMod().DataFileSystem.ReadObject<PlayTimeData>("PlayTimeTracker");
       if (afkCounts) { timer.Repeat(afkCheckInterval, 0, () => afkCheck()); }
+      if (manualLogInterval > 0) { timer.Repeat(manualLogInterval*60, 0, () => manualLog()); }
       foreach (BasePlayer player in BasePlayer.activePlayerList) { initPlayerState(player); }
     }
 
@@ -219,6 +222,12 @@ namespace Oxide.Plugins {
             playerStateData.Players[state.SteamID].AfkTime += afkCheckInterval;
           }
         }
+      }
+    }
+
+    private void manualLog() {
+      foreach (BasePlayer player in BasePlayer.activePlayerList) {
+        savePlayerState(player);
       }
     }
 
