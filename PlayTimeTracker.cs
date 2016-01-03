@@ -1,5 +1,5 @@
 /*
-* Version 1.3.2
+* Version 1.3.4
 */
 
 using System;
@@ -90,7 +90,7 @@ namespace Oxide.Plugins {
     }
 
     void LoadPermissions() {
-      string [] permissions = {"CanCheckPlayTime", "CanCheckAfkTime", "CanCheckLastSeen", "CanCheckSelfPlayTime", "CanCheckSelfAfkTime", "CanCheckSelfLastSeen"};
+      string [] permissions = {"PlayTimeTracker.CanCheckPlayTime", "PlayTimeTracker.CanCheckAfkTime", "PlayTimeTracker.CanCheckLastSeen", "PlayTimeTracker.CanCheckSelfPlayTime", "PlayTimeTracker.CanCheckSelfAfkTime", "PlayTimeTracker.CanCheckSelfLastSeen"};
       for (int i = 0; i < permissions.Length; i++){
         if (!permission.PermissionExists(permissions[i])) { permission.RegisterPermission(permissions[i], this); }
       }
@@ -132,7 +132,7 @@ namespace Oxide.Plugins {
     void cmdPlayTime(BasePlayer player, string cmd, string[] args) {
       string target = player.userID.ToString();
       if (args.Length!=0) {
-        if (!hasPermission(player, "CanCheckPlayTime")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.CanCheckPlayTime")) { return; }
         var queriedPlayer = args[0];
         string playerSteamID = FindPlayer(queriedPlayer);
         if (String.IsNullOrEmpty(playerSteamID)) {
@@ -141,7 +141,7 @@ namespace Oxide.Plugins {
         }
         target = playerSteamID.ToString();
       } else {
-        if (!hasPermission(player, "CanCheckSelfPlayTime")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.CanCheckSelfPlayTime")) { return; }
       }
 
       if (playerStateData.Players.ContainsKey(target)) {
@@ -157,7 +157,7 @@ namespace Oxide.Plugins {
     void cmdAfkTime(BasePlayer player, string cmd, string[] args) {
       string target = player.userID.ToString();
       if (args.Length!=0) {
-        if (!hasPermission(player, "CanCheckAfkTime")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.CanCheckAfkTime")) { return; }
         var queriedPlayer = args[0];
         string playerSteamID = FindPlayer(queriedPlayer);
         if (String.IsNullOrEmpty(playerSteamID)) {
@@ -166,7 +166,7 @@ namespace Oxide.Plugins {
         }
         target = playerSteamID.ToString();
       } else {
-        if (!hasPermission(player, "CanCheckSelfAfkTime")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.CanCheckSelfAfkTime")) { return; }
       }
 
       if (playerStateData.Players.ContainsKey(target)) {
@@ -180,7 +180,7 @@ namespace Oxide.Plugins {
     void cmdLastSeen(BasePlayer player, string command, string[] args) {
       string target = player.userID.ToString();
       if (args.Length!=0) {
-        if (!hasPermission(player, "CanCheckLastSeen")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.CanCheckLastSeen")) { return; }
         var queriedPlayer = args[0];
         string playerSteamID = FindPlayer(queriedPlayer);
         if (String.IsNullOrEmpty(playerSteamID)) {
@@ -189,7 +189,7 @@ namespace Oxide.Plugins {
         }
         target = playerSteamID.ToString();
       } else {
-        if (!hasPermission(player, "CanCheckSelfLastSeen")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.wCanCheckSelfLastSeen")) { return; }
       }
 
       if (playTimeData.Players.ContainsKey(target)) {
