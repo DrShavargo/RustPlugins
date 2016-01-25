@@ -1,5 +1,5 @@
 /*
-* Version 1.3.4
+* Version 1.4
 */
 
 using System;
@@ -8,7 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace Oxide.Plugins {
-  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.3)]
+  [Info("Playtime and AFK Tracker", "ArcaneCraeda", 1.4)]
   [Description("Logs every players' play and afk time, separately.")]
   public class PlayTimeTracker : RustPlugin {
 
@@ -18,7 +18,6 @@ namespace Oxide.Plugins {
       Config["Afk Check Interval"] = 30;
       Config["Cycles Until Afk"] = 4;
       Config["Track AFK Time?"] = true;
-      Config["Manual Logging Interval"] = 5;
       SaveConfig();
     }
 
@@ -60,8 +59,9 @@ namespace Oxide.Plugins {
       public string SteamID;
       public long InitTimeStamp;
       public int AfkCount;
-      public int AfkTime;
+      public long AfkTime;
       public double[] Position;
+      public string LiveName;
 
       public PlayerStateInfo() {  }
 
@@ -71,6 +71,7 @@ namespace Oxide.Plugins {
         AfkCount = 0;
         AfkTime = 0;
         Position = new double[3];
+        LiveName = player.displayName;
       }
     };
 
@@ -82,7 +83,6 @@ namespace Oxide.Plugins {
     int afkCheckInterval { get { return Config.Get<int>("Afk Check Interval"); } }
     int cyclesUntilAfk { get { return Config.Get<int>("Cycles Until Afk"); } }
     bool afkCounts { get { return Config.Get<bool>("Track AFK Time?"); } }
-    int manualLogInterval { get { return Config.Get<int>("Manual Logging Interval"); } }
 
     void Init() {
       Puts("PlayTimeTracker Initializing...");
@@ -99,7 +99,6 @@ namespace Oxide.Plugins {
     void OnPluginLoaded() {
       playTimeData = Interface.GetMod().DataFileSystem.ReadObject<PlayTimeData>("PlayTimeTracker");
       if (afkCounts) { timer.Repeat(afkCheckInterval, 0, () => afkCheck()); }
-      if (manualLogInterval > 0) { timer.Repeat(manualLogInterval*60, 0, () => manualLog()); }
       foreach (BasePlayer player in BasePlayer.activePlayerList) { initPlayerState(player); }
     }
 
@@ -148,8 +147,11 @@ namespace Oxide.Plugins {
         long currentTimestamp = GrabCurrentTimestamp();
         long initTimeStamp = playerStateData.Players[target].InitTimeStamp;
         long totalPlayed = currentTimestamp - initTimeStamp;
-        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[target].PlayTime + totalPlayed);
-        player.ChatMessage(playTimeData.Players[target].Name + "'s total playtime: " + string.Format("{0:c}", humanPlayTime));
+        if (playTimeData.Players.ContainsKey(target)){totalPlayed += playTimeData.Players[target].PlayTime;}
+        TimeSpan humanPlayTime = TimeSpan.FromSeconds(totalPlayed);
+        player.ChatMessage(playerStateData.Players[target].LiveName + "'s total playtime: " + string.Format("{0:c}", humanPlayTime));
+      }else{
+         player.ChatMessage("The player has never been seen on the server.");
       }
     }
 
@@ -170,9 +172,12 @@ namespace Oxide.Plugins {
       }
 
       if (playerStateData.Players.ContainsKey(target)) {
-        int afkTime = playerStateData.Players[target].AfkTime;
-        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[target].AfkTime + afkTime);
-        player.ChatMessage(playTimeData.Players[target].Name + "'s time spent AFK: " + string.Format("{0:c}", humanAfkTime));
+        long afkTime = playerStateData.Players[target].AfkTime;
+        if (playTimeData.Players.ContainsKey(target)){afkTime += playTimeData.Players[target].AfkTime;}
+        TimeSpan humanAfkTime = TimeSpan.FromSeconds(afkTime);
+        player.ChatMessage(playerStateData.Players[target].LiveName + "'s time spent AFK: " + string.Format("{0:c}", humanAfkTime));
+      }else{
+         player.ChatMessage("The player has never been seen on the server.");
       }
     }
 
@@ -189,11 +194,13 @@ namespace Oxide.Plugins {
         }
         target = playerSteamID.ToString();
       } else {
-        if (!hasPermission(player, "PlayTimeTracker.wCanCheckSelfLastSeen")) { return; }
+        if (!hasPermission(player, "PlayTimeTracker.CanCheckSelfLastSeen")) { return; }
       }
 
       if (playTimeData.Players.ContainsKey(target)) {
         player.ChatMessage(playTimeData.Players[target].Name + " was last seen " + playTimeData.Players[target].LastSeen);
+      }else{
+         player.ChatMessage("The player has never been seen on the server.");
       }
     }
 
@@ -225,12 +232,6 @@ namespace Oxide.Plugins {
       }
     }
 
-    private void manualLog() {
-      foreach (BasePlayer player in BasePlayer.activePlayerList) {
-        savePlayerState(player);
-      }
-    }
-
     private void initPlayerState(BasePlayer player) {
       long currentTimestamp = GrabCurrentTimestamp();
       var state = new PlayerStateInfo(player);
@@ -242,6 +243,7 @@ namespace Oxide.Plugins {
       playerStateData.Players[state.SteamID].InitTimeStamp = currentTimestamp;
       playerStateData.Players[state.SteamID].AfkTime = 0;
       playerStateData.Players[state.SteamID].AfkCount = 0;
+      playerStateData.Players[state.SteamID].LiveName = player.displayName;
 
       playerStateData.Players[state.SteamID].Position[0] = Math.Round(player.transform.position.x, 2);
       playerStateData.Players[state.SteamID].Position[1] = Math.Round(player.transform.position.y, 2);
@@ -253,24 +255,24 @@ namespace Oxide.Plugins {
       var info = new PlayTimeInfo(player);
       var state = new PlayerStateInfo(player);
 
-      if (playTimeData.Players.ContainsKey(info.SteamID))
-      {
-        long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
-        int afkTime = playerStateData.Players[state.SteamID].AfkTime;
-        long totalPlayed = currentTimestamp - initTimeStamp;
-
-        playTimeData.Players[info.SteamID].AfkTime += afkTime;
-        TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime);
-        playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:c}", humanAfkTime);
-
-        playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
-        TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
-        playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:c}", humanPlayTime);
-
-        playTimeData.Players[info.SteamID].LastSeen = (DateTime.Now).ToString("G");
-
-        Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
+      if (!playTimeData.Players.ContainsKey(info.SteamID)){
+        playTimeData.Players.Add(info.SteamID, info);
       }
+      long initTimeStamp = playerStateData.Players[state.SteamID].InitTimeStamp;
+      long afkTime = playerStateData.Players[state.SteamID].AfkTime;
+      long totalPlayed = currentTimestamp - initTimeStamp;
+
+      playTimeData.Players[info.SteamID].AfkTime += afkTime;
+      TimeSpan humanAfkTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].AfkTime);
+      playTimeData.Players[info.SteamID].HumanAfkTime = string.Format("{0:c}", humanAfkTime);
+
+      playTimeData.Players[info.SteamID].PlayTime += totalPlayed;
+      TimeSpan humanPlayTime = TimeSpan.FromSeconds(playTimeData.Players[info.SteamID].PlayTime);
+      playTimeData.Players[info.SteamID].HumanPlayTime = string.Format("{0:c}", humanPlayTime);
+
+      playTimeData.Players[info.SteamID].LastSeen = (DateTime.Now).ToString("G");
+
+      Interface.GetMod().DataFileSystem.WriteObject("PlayTimeTracker", playTimeData);
     }
 
     private static long GrabCurrentTimestamp() {
